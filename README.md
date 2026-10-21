@@ -19,14 +19,14 @@ The core is ~600 lines of Python with two dependencies (`httpx`, `pyyaml`). Read
 Requires Python 3.9+.
 
 ```bash
-pip install git+https://github.com/<YOUR_USER>/agentlab.git
+pip install git+https://github.com/ernesto-tapia/agentic-setup.git
 ```
 
 Or clone it to hack on the harness itself:
 
 ```bash
-git clone https://github.com/<YOUR_USER>/agentlab.git
-cd agentlab
+git clone https://github.com/ernesto-tapia/agentic-setup.git
+cd agentic-setup
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install --upgrade pip && pip install -e ".[dev]"
 pytest
