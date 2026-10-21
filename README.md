@@ -61,6 +61,8 @@ agentlab run  -m ollama:qwen2.5 "summarize README.md"
 
 > Tool calling needs a model that supports it. For local models, try `llama3.1`, `qwen2.5` or `mistral-nemo`.
 
+**New here?** Work through [EXERCISES.md](EXERCISES.md): eight short hands-on exercises covering the loop, agents, tools, skills, harness limits and hooks.
+
 ## Commands
 
 | Command | Does |
