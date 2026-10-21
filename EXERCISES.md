@@ -178,7 +178,7 @@ The `before_tool` hook in `hooks.py` blocks it before you're even asked. Now:
 Give every model the same task, starting from a fresh folder each time:
 
 ```bash
-agentlab run -y -m gemini:gemini-2.5-flash  "Write fizzbuzz.py and test_fizzbuzz.py (plain asserts, no pytest), run the tests with python, and fix the code until they pass"
+agentlab run -y -m gemini:gemini-3.8-flash  "Write fizzbuzz.py and test_fizzbuzz.py (plain asserts, no pytest), run the tests with python, and fix the code until they pass"
 agentlab run -y -m groq:openai/gpt-oss-20b  "...same task..."
 agentlab run -y -m ollama:qwen2.5           "...same task..."
 ```
