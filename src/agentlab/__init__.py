@@ -3,4 +3,4 @@
 from .tools import tool
 
 __all__ = ["tool"]
-__version__ = "0.1.0"
+__version__ = "0.1.1"

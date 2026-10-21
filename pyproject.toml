@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentlab"
-version = "0.1.0"
+version = "0.1.1"
 description = "A tiny, hackable, model-agnostic harness for building agentic loops with skills, tools and agent instructions."
 readme = "README.md"
 requires-python = ">=3.9"

@@ -13,13 +13,25 @@ and register it in PROVIDERS at the bottom.
 
 import json
 import os
+import sys
+import time
 import uuid
 
 import httpx
 
+RETRY_STATUS = {429, 500, 502, 503, 504, 529}
+
 
 class ProviderError(Exception):
     pass
+
+
+def _retry_after(response):
+    """Seconds the server asked us to wait, if it said (capped at 60)."""
+    try:
+        return min(float(response.headers.get("retry-after")), 60)
+    except (AttributeError, TypeError, ValueError):
+        return None
 
 
 class BaseProvider:
@@ -34,10 +46,24 @@ class BaseProvider:
         self.timeout = cfg.get("timeout", 120)
 
     def _post(self, url, headers, body):
-        try:
-            r = httpx.post(url, headers=headers, json=body, timeout=self.timeout)
-        except httpx.HTTPError as e:
-            raise ProviderError(f"Request to {url} failed: {e}") from e
+        """POST with retries on rate limits (429) and overloaded servers (5xx)."""
+        retries = self.cfg.get("retries", 4)
+        for attempt in range(retries + 1):
+            try:
+                r = httpx.post(url, headers=headers, json=body, timeout=self.timeout)
+            except httpx.HTTPError as e:
+                if attempt == retries:
+                    raise ProviderError(f"Request to {url} failed: {e}") from e
+                r = None
+            if r is not None and r.status_code not in RETRY_STATUS:
+                break
+            if attempt == retries:
+                break
+            wait = _retry_after(r) or min(2 ** (attempt + 1), 30)
+            reason = f"{r.status_code}" if r is not None else "network error"
+            print(f"\033[2m({reason}: model busy, retrying in {wait:.0f}s, attempt {attempt + 1}/{retries})\033[0m",
+                  file=sys.stderr)
+            time.sleep(wait)
         if r.status_code >= 400:
             raise ProviderError(f"{r.status_code} from {url}: {r.text[:1000]}")
         return r.json()

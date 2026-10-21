@@ -24,6 +24,7 @@ model:
 
   # temperature: 0.2
   # max_tokens: 4096
+  # retries: 4            # retry on 429 rate limits / 503 "model busy" (waits 2, 4, 8, 16s)
   # extra: {}             # extra fields merged into the request body as-is
 
 agent: default            # which file in agents/ to use by default

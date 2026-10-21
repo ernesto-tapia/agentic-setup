@@ -42,3 +42,23 @@ def test_model_override_and_schema():
     t = Tool(f)
     assert t.parameters["required"] == ["a"]
     assert t.parameters["properties"]["a"] == {"type": "integer", "description": "the number"}
+
+
+def test_retries_on_503(monkeypatch):
+    import httpx
+    from agentlab import providers
+
+    responses = [httpx.Response(503, text="busy"), httpx.Response(429, text="slow down"),
+                 httpx.Response(200, json={"choices": [{"message": {"content": "hi"}}]})]
+    monkeypatch.setattr(providers.httpx, "post", lambda *a, **k: responses.pop(0))
+    monkeypatch.setattr(providers.time, "sleep", lambda s: None)
+    p = providers.make_provider(resolve_model({"provider": "ollama", "name": "x"}))
+    assert p.complete("sys", [{"role": "user", "content": "hello"}], [])["content"] == "hi"
+
+    responses[:] = [httpx.Response(503, text="busy")] * 5
+    p.cfg["retries"] = 2
+    try:
+        p.complete("sys", [{"role": "user", "content": "hello"}], [])
+        assert False, "expected ProviderError"
+    except providers.ProviderError as e:
+        assert "503" in str(e)
