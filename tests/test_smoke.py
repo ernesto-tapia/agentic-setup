@@ -62,3 +62,28 @@ def test_retries_on_503(monkeypatch):
         assert False, "expected ProviderError"
     except providers.ProviderError as e:
         assert "503" in str(e)
+
+
+def test_ask_agent_delegation_and_depth(tmp_path):
+    main(["init", str(tmp_path)])
+    agent = Agent(Project(tmp_path), auto_approve=True, verbose=False)
+    assert set(agent.callable_agents) == {"reviewer", "tutor"}
+    assert "## Other agents" in agent.system_prompt()
+
+    ask = next(t for t in agent.tools if t.name == "ask_agent")
+    reply = ask(agent="reviewer", message="check agentlab.yaml")
+    assert "agentlab.yaml" in reply                      # the mock reviewer ran list_dir
+    assert agent.subagents["reviewer"].depth == 1
+    assert "No agent named" in ask(agent="nobody", message="hi")
+
+    # the chain stops at max_depth: a depth-2 agent can't delegate
+    deep = Agent(Project(tmp_path), auto_approve=True, verbose=False, depth=2)
+    assert "ask_agent" not in [t.name for t in deep.tools]
+
+
+def test_talk_command(tmp_path, monkeypatch, capsys):
+    main(["init", str(tmp_path)])
+    monkeypatch.chdir(tmp_path)
+    main(["talk", "default", "reviewer", "hello", "--rounds", "1", "-y", "-q"])
+    out = capsys.readouterr().out
+    assert "default>" in out and "reviewer>" in out

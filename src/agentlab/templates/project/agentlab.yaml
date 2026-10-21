@@ -35,6 +35,7 @@ harness:
   confirm: [run_shell, write_file]   # ask before running these
   workdir: .              # file and shell tools are confined to this folder
   max_tool_output: 20000  # truncate long tool results (chars)
+  max_depth: 2            # agents calling agents: how many levels deep (0 = no delegation)
 
 # Folder layout (defaults shown)
 # agents_dir: agents

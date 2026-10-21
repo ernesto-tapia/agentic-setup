@@ -23,21 +23,27 @@ def _load_hooks(path):
 
 
 class Agent:
-    def __init__(self, project, agent_name=None, model_override=None, auto_approve=False, verbose=True):
+    def __init__(self, project, agent_name=None, model_override=None, auto_approve=False, verbose=True,
+                 depth=0, parent=None):
         self.project = project
         self.meta, self.instructions = project.load_agent(agent_name)
         self.harness = project.harness(self.meta)
+        self.model_override = model_override
         self.model_cfg = project.model(self.meta, model_override)
         self.provider = make_provider(self.model_cfg)
         self.auto_approve = auto_approve
         self.verbose = verbose
-        self.always_allowed = set()
+        self.depth = depth          # 0 = the agent you talk to; 1 = an agent it called; ...
+        self.parent = parent
+        self.prefix = "  │ " * depth
+        self.always_allowed = parent.always_allowed if parent else set()
         self.messages = []
+        self.subagents = {}         # agents this one has called, kept so follow-ups remember context
 
-        toolmod.CONTEXT["workdir"] = self.harness["workdir"]
         toolmod.load_tools_dir(project.tools_dir)
         self.skills = load_skills(project.skills_dir, self.meta.get("skills"))
         self.hooks = _load_hooks(project.hooks_file)
+        self.callable_agents = self._callable_agents()
         self.tools = self._select_tools()
 
     # ------------------------------------------------------------ setup
@@ -47,14 +53,43 @@ class Agent:
         names = list(REGISTRY) if wanted in ("*", None) else list(wanted)
         selected = []
         for n in names:
-            if n == "load_skill":
+            if n in ("load_skill", "ask_agent"):
                 continue
             if n not in REGISTRY:
                 raise SystemExit(f"Tool '{n}' not found. Available: {', '.join(REGISTRY)}")
             selected.append(REGISTRY[n])
         if self.skills and (wanted in ("*", None) or "load_skill" in wanted):
             selected.append(self._skill_tool())
+        if self.callable_agents and (wanted in ("*", None) or "ask_agent" in wanted):
+            selected.append(self._agent_tool())
         return selected
+
+    def _callable_agents(self):
+        """Other agents this one may delegate to: frontmatter `agents:` or all others."""
+        if self.depth >= self.harness["max_depth"]:
+            return {}
+        names = self.meta.get("agents") or [a for a in self.project.list_agents() if a != self.meta["name"]]
+        return {n: self.project.load_agent(n)[0].get("description", "") for n in names}
+
+    def _agent_tool(self):
+        def ask_agent(agent: str, message: str) -> str:
+            """Send a message to another agent and get its final reply. The other agent
+            does not see this conversation, so include all the context it needs.
+
+            Args:
+                agent: the agent name, exactly as listed in the system prompt
+                message: the task or question for that agent
+            """
+            if agent not in self.callable_agents:
+                return f"No agent named '{agent}'. Available: {', '.join(self.callable_agents)}"
+            if agent not in self.subagents:
+                self.subagents[agent] = Agent(self.project, agent, self.model_override, self.auto_approve,
+                                              self.verbose, depth=self.depth + 1, parent=self)
+            self.log(f"── {self.meta['name']} → {agent} ──", CYAN)
+            reply = self.subagents[agent].run(message)
+            self.log(f"── {agent} → {self.meta['name']} ──", CYAN)
+            return reply
+        return Tool(ask_agent)
 
     def _skill_tool(self):
         def load_skill(name: str) -> str:
@@ -74,6 +109,10 @@ class Agent:
             lines = "\n".join(f"- {s.name}: {s.description}" for s in self.skills.values())
             parts.append("## Skills\nYou have these skills. When a task matches one, call `load_skill` "
                          f"to read its instructions before starting.\n{lines}")
+        if any(t.name == "ask_agent" for t in self.tools):
+            lines = "\n".join(f"- {n}: {d}" for n, d in self.callable_agents.items())
+            parts.append("## Other agents\nYou can delegate to these agents with `ask_agent`. They cannot see "
+                         f"this conversation, so give them everything they need.\n{lines}")
         parts.append(f"## Environment\n- Working directory: {self.harness['workdir']}\n"
                      f"- OS: {platform.system()}\n- Date: {date.today().isoformat()}")
         prompt = "\n\n".join(parts)
@@ -85,13 +124,15 @@ class Agent:
 
     def log(self, text, color=DIM):
         if self.verbose:
+            text = self.prefix + text.replace("\n", "\n" + self.prefix)
             print(f"{color}{text}{RESET}")
 
     def _approve(self, call):
         if self.auto_approve or call["name"] not in (self.harness["confirm"] or []) or call["name"] in self.always_allowed:
             return True
         args = json.dumps(call["arguments"], ensure_ascii=False)
-        answer = input(f"{YELLOW}Allow {call['name']}({args[:300]})? [y]es / [n]o / [a]lways: {RESET}").strip().lower()
+        who = f"[{self.meta['name']}] " if self.depth else ""
+        answer = input(f"{YELLOW}{self.prefix}{who}Allow {call['name']}({args[:300]})? [y]es / [n]o / [a]lways: {RESET}").strip().lower()
         if answer == "a":
             self.always_allowed.add(call["name"])
         return answer in ("y", "yes", "a")
@@ -106,6 +147,7 @@ class Agent:
             return f"Error: unknown tool '{call['name']}'"
         if not self._approve(call):
             return "The user denied this tool call."
+        toolmod.CONTEXT["workdir"] = self.harness["workdir"]  # each agent may have its own workdir
         try:
             result = str(tool(**call["arguments"]))
         except Exception as e:  # report errors back to the model so it can recover

@@ -193,7 +193,42 @@ Fill in a table with your classmates:
 
 ---
 
-## 8. Mini-project (pick one)
+## 8. Agents talking to agents
+
+**Concept:** delegation (subagents) and multi-agent conversation.
+
+**Part A: delegation.** The starter `default` agent is told to ask the `reviewer` agent to check its work.
+
+```bash
+agentlab run "Write is_palindrome.py with a function that ignores spaces and capitals"
+```
+
+- Find the `── default → reviewer ──` lines. The indented part is the reviewer running its own loop.
+- Run `/system` in `agentlab chat` and find the "Other agents" section. That's how the model knows who it can call.
+- The reviewer can't see the default agent's conversation. What did default have to put in the message?
+
+**Part B: mix models.** Add `model: {provider: groq, name: openai/gpt-oss-20b}` to `agents/reviewer.md`
+so the reviewer runs on a different model from the coder. Does a second model catch different mistakes?
+
+**Part C: conversation.**
+
+```bash
+agentlab talk default reviewer "Write a function that checks if a number is prime" -r 3 -y
+```
+
+Each agent's reply becomes the other's next message. Then create two agents with opposite opinions
+(`agentlab new agent optimist` and `agentlab new agent skeptic`) and let them debate:
+
+```bash
+agentlab talk optimist skeptic "Will AI agents replace junior developers?" -r 2
+```
+
+**Questions:** When is it better to split work across agents instead of one agent with more
+instructions? What happens if you set `max_depth: 0`?
+
+---
+
+## 9. Mini-project (pick one)
 
 Build it, then show it to someone else in the class.
 

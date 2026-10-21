@@ -99,9 +99,10 @@ def load_tools_dir(path):
     if not path.is_dir():
         return
     for file in sorted(path.glob("*.py")):
-        if file.name.startswith("_"):
+        name = f"agentlab_user_tools.{file.stem}"
+        if file.name.startswith("_") or name in sys.modules:  # already loaded (e.g. by another agent)
             continue
-        spec = importlib.util.spec_from_file_location(f"agentlab_user_tools.{file.stem}", file)
+        spec = importlib.util.spec_from_file_location(name, file)
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)

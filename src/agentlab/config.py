@@ -29,6 +29,7 @@ DEFAULT_HARNESS = {
     "confirm": ["run_shell", "write_file"],
     "workdir": ".",
     "max_tool_output": 20000,
+    "max_depth": 2,   # how deep agents may call agents (stops A → B → A → B ... loops)
 }
 
 

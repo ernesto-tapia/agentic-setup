@@ -18,6 +18,7 @@ description: {name} agent
 # model: {{provider: ollama, name: llama3.1}}
 # tools: [read_file, list_dir, load_skill]
 # skills: [explain-code]
+# agents: [reviewer]            # which agents it may call with ask_agent
 # max_turns: 10
 ---
 You are {name}, a helpful agent. Describe its role, rules and style here.
@@ -78,7 +79,7 @@ def cmd_list(args):
     print(f"Project: {project.root}")
     print(f"Model:   {project.config.get('model')}")
     print("\nAgents:  " + ", ".join(project.list_agents()))
-    print("Tools:   " + ", ".join(list(REGISTRY) + ["load_skill"]))
+    print("Tools:   " + ", ".join(list(REGISTRY) + ["load_skill", "ask_agent"]))
     print("Skills:")
     for s in load_skills(project.skills_dir).values():
         print(f"  - {s.name}: {s.description}")
@@ -119,6 +120,25 @@ def cmd_run(args):
         print(agent.run(task))
     except ProviderError as e:
         sys.exit(f"Error: {e}")
+
+
+def cmd_talk(args):
+    """Two agents take turns replying to each other."""
+    from .loop import Agent
+    project = get_project()
+    try:
+        a, b = (Agent(project, name, args.model, auto_approve=args.yes, verbose=not args.quiet)
+                for name in (args.agent_a, args.agent_b))
+        message = args.topic
+        print(f"\033[1mtopic>\033[0m {message}\n")
+        for _ in range(args.rounds):
+            for agent, color in ((a, "32"), (b, "35")):
+                message = agent.run(message)
+                print(f"\033[1;{color}m{agent.meta['name']}>\033[0m {message}\n")
+    except ProviderError as e:
+        sys.exit(f"Error: {e}")
+    except KeyboardInterrupt:
+        print("\n(interrupted)")
 
 
 def cmd_chat(args):
@@ -171,6 +191,16 @@ def main(argv=None):
         s.add_argument("-y", "--yes", action="store_true", help="auto-approve all tool calls")
         s.add_argument("-q", "--quiet", action="store_true", help="hide tool call logs")
         s.set_defaults(fn=fn)
+
+    s = sub.add_parser("talk", help="let two agents talk to each other")
+    s.add_argument("agent_a", help="speaks first")
+    s.add_argument("agent_b", help="replies (can be the same agent as A)")
+    s.add_argument("topic", help="the opening message for agent A")
+    s.add_argument("-r", "--rounds", type=int, default=3, help="how many back-and-forth rounds (default 3)")
+    s.add_argument("-m", "--model", help="override model for both agents, e.g. groq:openai/gpt-oss-20b")
+    s.add_argument("-y", "--yes", action="store_true", help="auto-approve all tool calls")
+    s.add_argument("-q", "--quiet", action="store_true", help="hide tool call logs")
+    s.set_defaults(fn=cmd_talk)
 
     s = sub.add_parser("list", help="show agents, tools, skills and providers")
     s.set_defaults(fn=cmd_list)

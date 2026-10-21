@@ -11,6 +11,7 @@ Swap models with one line, and shape agent behaviour with plain files:
 | **Tools** | `tools/*.py` | Python functions with `@tool` |
 | **Harness** | `agentlab.yaml` → `harness:` | max turns, allowed tools, approvals, sandbox folder |
 | **Hooks** | `hooks.py` | intercept/block/log tool calls, edit the system prompt |
+| **Multi-agent** | `ask_agent` tool, `agentlab talk` | agents delegate to each other, or hold a conversation |
 
 The core is ~600 lines of Python with two dependencies (`httpx`, `pyyaml`). Read it, break it, change it.
 
@@ -61,7 +62,7 @@ agentlab run  -m ollama:qwen2.5 "summarize README.md"
 
 > Tool calling needs a model that supports it. For local models, try `llama3.1`, `qwen2.5` or `mistral-nemo`.
 
-**New here?** Work through [EXERCISES.md](EXERCISES.md): eight short hands-on exercises covering the loop, agents, tools, skills, harness limits and hooks.
+**New here?** Work through [EXERCISES.md](EXERCISES.md): nine short hands-on exercises covering the loop, agents, tools, skills, harness limits, hooks and multi-agent setups.
 
 ## Commands
 
@@ -72,6 +73,7 @@ agentlab run  -m ollama:qwen2.5 "summarize README.md"
 | `agentlab run "task" [-a agent] [-y]` | One task, then exit (`-y` auto-approves tools) |
 | `agentlab list` | Show agents, tools, skills, providers |
 | `agentlab new agent\|skill\|tool NAME` | Scaffold a new one from a template |
+| `agentlab talk A B "topic" [-r rounds]` | Two agents take turns replying to each other |
 
 ## Customizing
 
@@ -143,6 +145,31 @@ def system_prompt(prompt, agent):  # return a modified prompt
 ```
 
 The template blocks `rm -rf` and `sudo` and logs every tool call to `agentlab.log`.
+
+### Multi-agent: agents talking to agents
+
+**Delegation (subagents).** Every agent gets an `ask_agent(agent, message)` tool listing the other
+agents in `agents/`. The called agent runs its own loop with its own instructions, model and tools,
+then its final reply comes back as the tool result. The starter `default` agent asks `reviewer`
+to check its code.
+
+```markdown
+---
+agents: [reviewer, tutor]   # who this agent may call (default: all others)
+---
+```
+
+- The called agent can't see the caller's conversation, so the caller must pass the context in `message`.
+- It remembers earlier calls from the same parent, so follow-up questions work.
+- `harness.max_depth` (default 2) limits how deep A → B → C can go; `0` turns delegation off.
+- Give each agent a different `model:` to mix models, such as a cheap fast worker and a stronger reviewer.
+
+**Conversation.** Two agents take turns, each reply becoming the other's next message:
+
+```bash
+agentlab talk default reviewer "Write a function that checks if a string is a palindrome" -r 3
+agentlab talk tutor tutor "Debate: tabs vs spaces" -r 2
+```
 
 ## How the loop works
 
