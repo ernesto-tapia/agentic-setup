@@ -1,0 +1,9 @@
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.env
+.pytest_cache/
+agentlab.log

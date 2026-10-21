@@ -1,0 +1,42 @@
+# agentlab project config. Everything here can be overridden per agent
+# (frontmatter in agents/*.md) or per run (`agentlab chat -m provider:model`).
+
+model:
+  # Pick ONE provider. Presets fill in base_url and api_key_env for you:
+  #   openai | anthropic | ollama | lmstudio | groq | openrouter | gemini | deepseek | mistral | together | mock
+  provider: mock          # offline fake model, so you can try the harness with no API key
+  name: mock
+
+  # Examples (uncomment one block and delete the mock lines above):
+  # provider: openai
+  # name: gpt-4o-mini
+  #
+  # provider: anthropic
+  # name: claude-sonnet-5-5
+  #
+  # provider: ollama        # free & local: install Ollama, then `ollama pull llama3.1`
+  # name: llama3.1
+  #
+  # provider: openai        # any other OpenAI-compatible server (vLLM, university cluster, ...)
+  # name: my-model
+  # base_url: http://my-server:8000/v1
+  # api_key_env: MY_SERVER_KEY
+
+  # temperature: 0.2
+  # max_tokens: 4096
+  # extra: {}             # extra fields merged into the request body as-is
+
+agent: default            # which file in agents/ to use by default
+
+harness:
+  max_turns: 20           # max model calls per user message (stops runaway loops)
+  tools: "*"              # "*" = all tools, or a list like [read_file, list_dir, load_skill]
+  confirm: [run_shell, write_file]   # ask before running these
+  workdir: .              # file and shell tools are confined to this folder
+  max_tool_output: 20000  # truncate long tool results (chars)
+
+# Folder layout (defaults shown)
+# agents_dir: agents
+# skills_dir: skills
+# tools_dir: tools
+# hooks_file: hooks.py
